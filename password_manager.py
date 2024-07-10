@@ -4,6 +4,7 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.backends import default_backend
 import os
 import base64
+from cryptography.fernet import InvalidToken
 
 class SaltManager(object):
     def __init__(self, generate_salt, path='.salt'):
@@ -37,6 +38,8 @@ def derive_key(passphrase, generate_salt=False):
     )
     return base64.urlsafe_b64encode(kdf.derive(passphrase))
 
+from cryptography.fernet import InvalidToken
+
 def view():
     passphrase = input("What is the masterKey: ").encode()
     key = derive_key(passphrase)
@@ -45,19 +48,29 @@ def view():
         with open("passwords.txt", "r") as file:
             for line in file.readlines():
                 data = line.rstrip()
-                account, password = data.split("|")
-                print("account: " + account, ", password: " + f.decrypt(password.encode()).decode())
+                parts = data.split("|")
+                if len(parts) == 3:
+                    website, username, password = parts
+                    try:
+                        decrypted_password = f.decrypt(password.encode()).decode()
+                        print("website: " + website + " username: " + username + ", password: " + decrypted_password)
+                    except InvalidToken:
+                        print("Error: Invalid master key provided.")
+                else:
+                    print("Error: Incorrect data format in passwords.txt")
     except FileNotFoundError:
         print("No passwords stored yet.")
 
+        
 def add():
     passphrase = input("What is the masterKey: ").encode()
     f = Fernet(derive_key(passphrase))
-    account_name = input("What is the account name? ")
+    website = input("Name of the website? ")
+    username = input("What is the username? ")
     password = input("What is the password? ")
 
     with open("passwords.txt", "a") as file:
-        file.write(account_name + "|" + f.encrypt(password.encode()).decode() + "\n")
+        file.write(website+"|"+ username + "|" + f.encrypt(password.encode()).decode() + "\n")
 
 while True:
     options = input("Do you want to 1.view or 2.add a password? or 3.quit: ").lower()
